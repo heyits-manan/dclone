@@ -2,9 +2,11 @@ package main
 
 import (
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/heyits-manan/dclone/cmd"
+	"github.com/heyits-manan/dclone/internal/runtime"
 )
 
 func main() {
