@@ -23,12 +23,16 @@ func setupContainer(rootfs string) error {
 
 	// Mount proc filesystem
 	if err := syscall.Mount("proc", "/proc", "proc", 0, ""); err != nil {
-		return fmt.Errorf("mount proc: %w", err)
+		if err != syscall.EBUSY {
+			return fmt.Errorf("mount proc: %w", err)
+		}
 	}
 
 	// Mount sys filesystem
 	if err := syscall.Mount("sysfs", "/sys", "sysfs", 0, ""); err != nil {
-		return fmt.Errorf("mount sys: %w", err)
+		if err != syscall.EBUSY {
+			return fmt.Errorf("mount sys: %w", err)
+		}
 	}
 
 	return nil
