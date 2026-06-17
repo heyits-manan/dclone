@@ -1,10 +1,12 @@
 # dclone
 
-A minimal container runtime for learning Linux namespaces, cgroups, and networking.
+A minimal educational container runtime built in Go.
+
+This project was built for learning how containers work under the hood. It is not intended to become a production runtime or a Docker replacement. The current scope is Phase 1: run a command inside a simple isolated Linux environment using namespaces, `chroot`, and mounts.
 
 ## Current Status
 
-**Phase 1 Complete: Container Execution**
+**Phase 1 Complete: Educational Container Execution**
 
 ✅ `dclone run <rootfs> <command> [args...]` — Run a container with isolated namespaces
 
@@ -14,6 +16,16 @@ A minimal container runtime for learning Linux namespaces, cgroups, and networki
 - **Filesystem isolation** via Mount namespace + chroot (container has its own root filesystem)
 - **Re-exec pattern** — Parent process creates namespaces, child process enters container
 - **Alpine Linux** containers can run successfully
+
+### What Is Intentionally Left Out
+- `stop` command lifecycle management
+- cgroups and resource limits
+- container networking
+- image pulling/layer management
+- daemon/client architecture
+- production hardening and security controls
+
+`cmd/stop.go` currently exists as a placeholder, but `stopCmd` is not registered in the root command, so `dclone stop` is not available yet.
 
 ## Quick Start
 
@@ -53,7 +65,7 @@ You should see a prompt like `/ #` indicating you're inside the Alpine container
 Inside the container, run:
 ```bash
 hostname          # Shows: container
-ps aux            # Shows only container processes (PID 1 is /bin/sh)
+ps aux            # Shows the isolated process namespace
 ls /              # Shows Alpine filesystem (bin, etc, lib, usr, ...)
 cat /etc/os-release  # Shows Alpine Linux
 exit              # Exit the container
@@ -82,10 +94,11 @@ runtime.RunChild() (child process)
 setupContainer():
   1. Sethostname("container")
   2. Chroot(/tmp/alpine-rootfs)
-  3. Mount /proc
-  4. Mount /sys
+  3. Chdir("/")
+  4. Mount /proc
+  5. Mount /sys
      ↓
-Exec /bin/sh (user's command)
+Run /bin/sh (user's command)
 ```
 
 ## Project Structure
@@ -94,21 +107,14 @@ Exec /bin/sh (user's command)
 dclone/
 ├── cmd/
 │   ├── root.go          # Root command (dclone --help)
-│   └── run.go           # Run command: dclone run <rootfs> <command>
+│   ├── run.go           # Run command: dclone run <rootfs> <command>
+│   └── stop.go          # Placeholder; not registered yet
 ├── internal/
 │   ├── runtime/
-│   │   ├── container.go # Parent process: creates namespaces, re-execs
-│   │   └── child.go     # Child process: chroot, mounts, exec
+│   │   ├── container.go # Parent process: creates namespaces and re-execs
+│   │   └── child.go     # Child process: chroot, mounts, and runs command
 │   ├── namespace/
-│   │   └── setup.go     # Placeholder for namespace operations
-│   ├── cgroup/
-│   │   └── limit.go     # Placeholder for cgroup limits
-│   ├── network/
-│   │   └── placeholder.go # Placeholder for networking
-│   ├── image/
-│   │   └── placeholder.go # Placeholder for image management
-│   └── storage/
-│       └── rootfs.go    # Placeholder for storage
+│   │   └── setup.go     # Placeholder for future namespace-specific operations
 ├── daemon/               # Placeholder for daemon
 ├── docs/                 # Placeholder for documentation
 ├── main.go              # Entry point, parent/child detection
@@ -124,6 +130,11 @@ The same binary runs twice:
 2. **Child process**: Enters container, sets up environment, runs user's command
 
 This is necessary because Linux namespaces can only be applied to **new processes**, not the current process.
+
+### Educational Process Model
+The parent stays outside the container-like environment and starts a child process with isolated namespaces. The child then sets up hostname, root filesystem, and mounts before running the requested command.
+
+The current implementation uses `exec.Command(...).Run()` for the user's command. A more complete runtime would typically replace the child process with the user's command using `syscall.Exec` so the command has cleaner PID 1 semantics inside the container.
 
 ### Why chroot (not pivot_root)
 - `chroot` is simpler to understand for learning purposes
@@ -144,25 +155,28 @@ This is necessary because Linux namespaces can only be applied to **new processe
 - UTS namespace
 - chroot filesystem isolation
 
-### Milestone 2: Resource Limits
+### Future Learning Ideas
+These are intentionally not implemented in the current learning version:
+
+#### Resource Limits
 - `stop` command
 - Memory limits
 - CPU limits
 - cgroups v2
 
-### Milestone 3: Image Management
+#### Image Management
 - Image loading
 - Layer management
 - Rootfs preparation
 
-### Milestone 4: Networking
+#### Networking
 - Bridge interface
 - NAT
 - Port forwarding
 - veth pairs
 - Network namespaces
 
-### Milestone 5: Daemon Mode
+#### Daemon Mode
 - Client-server architecture
 - REST API
 - Container lifecycle management
