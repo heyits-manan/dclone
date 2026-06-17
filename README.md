@@ -1,5 +1,7 @@
 # dclone
 
+https://github.com/user-attachments/assets/36b417e8-4656-4916-bcaa-e376aba4c032
+
 A minimal educational container runtime built in Go.
 
 This project was built for learning how containers work under the hood. It is not intended to become a production runtime or a Docker replacement. The current scope is Phase 1: run a command inside a simple isolated Linux environment using namespaces, `chroot`, and mounts.
