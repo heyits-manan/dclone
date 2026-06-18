@@ -5,14 +5,16 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+
+	"github.com/heyits-manan/dclone/internal/cgroup"
 )
 
-func Run(rootfs, command string, args []string) error {
+func Run(rootfs, command string, args []string, memoryLimit string) error {
 	// We're the parent - set up namespaces and re-exec
-	return runParent(rootfs, command, args)
+	return runParent(rootfs, command, args, memoryLimit)
 }
 
-func runParent(rootfs, command string, args []string) error {
+func runParent(rootfs, command string, args []string, memoryLimit string) error {
 	fmt.Printf("Running parent: %s %v\n", command, args)
 
 	cmd := exec.Command("/proc/self/exe", append([]string{"child", rootfs, command}, args...)...)
@@ -21,12 +23,28 @@ func runParent(rootfs, command string, args []string) error {
 	cmd.Stderr = os.Stderr
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: syscall.CLONE_NEWUTS | 
-                    syscall.CLONE_NEWPID | 
-                    syscall.CLONE_NEWNS,
+		Cloneflags: syscall.CLONE_NEWUTS |
+			syscall.CLONE_NEWPID |
+			syscall.CLONE_NEWNS,
 	}
 
-	return cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start child process: %w", err)
+	}
+
+	if memoryLimit != "" {
+		cg, err := cgroup.NewMemoryCgroup(fmt.Sprintf("container-%d", cmd.Process.Pid), memoryLimit)
+		if err != nil {
+			return err
+		}
+		defer cg.Cleanup()
+
+		if err := cg.AddProcess(cmd.Process.Pid); err != nil {
+			return fmt.Errorf("add process to cgroup: %w", err)
+		}
+	}
+
+	return cmd.Wait()
 }
 
 func RunChild(rootfs, command string, args []string) error {
