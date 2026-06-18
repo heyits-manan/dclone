@@ -7,14 +7,14 @@ import (
 	"syscall"
 
 	"github.com/heyits-manan/dclone/internal/cgroup"
+	"github.com/heyits-manan/dclone/internal/network"
 )
 
-func Run(rootfs, command string, args []string, memoryLimit string) error {
-	// We're the parent - set up namespaces and re-exec
-	return runParent(rootfs, command, args, memoryLimit)
+func Run(rootfs, command string, args []string, memoryLimit string, networkConfig network.Config) error {
+	return runParent(rootfs, command, args, memoryLimit, networkConfig)
 }
 
-func runParent(rootfs, command string, args []string, memoryLimit string) error {
+func runParent(rootfs, command string, args []string, memoryLimit string, networkConfig network.Config) error {
 	fmt.Printf("Running parent: %s %v\n", command, args)
 
 	cmd := exec.Command("/proc/self/exe", append([]string{"child", rootfs, command}, args...)...)
@@ -25,7 +25,8 @@ func runParent(rootfs, command string, args []string, memoryLimit string) error 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS |
 			syscall.CLONE_NEWPID |
-			syscall.CLONE_NEWNS,
+			syscall.CLONE_NEWNS |
+			syscall.CLONE_NEWNET,
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -42,6 +43,10 @@ func runParent(rootfs, command string, args []string, memoryLimit string) error 
 		if err := cg.AddProcess(cmd.Process.Pid); err != nil {
 			return fmt.Errorf("add process to cgroup: %w", err)
 		}
+	}
+
+	if err := network.Setup(cmd.Process.Pid, networkConfig); err != nil {
+		return fmt.Errorf("setup network: %w", err)
 	}
 
 	return cmd.Wait()
